@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ghost Network Playbook</title>
+<meta name="description" content="Independent concept by Aditya Mathur: a 30-day forward-deployed playbook for finding inactive providers in a health plan directory from claims, with live in-browser SQL on synthetic data, adequacy impact, deployment plan and metrics.">
+<style>
+:root{
+  --bg:#f7f7f5; --surface:#ffffff; --ink:#1a1d23; --muted:#5b6270; --line:#e3e4e8;
+  --accent:#0d7a6f; --accent-soft:#e3f3f0; --good:#18794e; --good-soft:#e6f4ec;
+  --warn:#9a5b00; --warn-soft:#fbf1dd; --bad:#b42318; --bad-soft:#fdeceb;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1115; --surface:#171a21; --ink:#e8eaee; --muted:#9aa1ad; --line:#2a2f3a;
+    --accent:#5fd3c2; --accent-soft:#10302b; --good:#4cc38a; --good-soft:#12291e;
+    --warn:#e0a53c; --warn-soft:#2b2210; --bad:#f07167; --bad-soft:#2d1614;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1115; --surface:#171a21; --ink:#e8eaee; --muted:#9aa1ad; --line:#2a2f3a;
+  --accent:#5fd3c2; --accent-soft:#10302b; --good:#4cc38a; --good-soft:#12291e;
+  --warn:#e0a53c; --warn-soft:#2b2210; --bad:#f07167; --bad-soft:#2d1614;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;}
+.wrap{max-width:900px;margin:0 auto;padding:40px 16px 80px}
+.kicker{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+h1{font-size:clamp(28px,5vw,40px);line-height:1.15;margin:0 0 12px;letter-spacing:-.01em}
+h2{font-size:22px;margin:56px 0 12px;padding-top:8px;letter-spacing:-.005em}
+h3{font-size:17px;margin:28px 0 8px}
+p{margin:0 0 14px}
+a{color:var(--accent)}
+.lede{font-size:18px;color:var(--muted);margin-bottom:20px}
+.meta{font-size:14px;color:var(--muted);border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:10px 0;margin:20px 0 28px;display:flex;flex-wrap:wrap;gap:6px 18px}
+.note{font-size:13px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+.tldr{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:24px 0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px}
+.card .label{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.card p{margin:0;font-size:15px}
+ul,ol{padding-left:22px;margin:0 0 14px}
+li{margin:4px 0}
+.tbl{width:100%;overflow-x:auto;margin:10px 0 18px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14px;min-width:560px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:600}
+tr:last-child td{border-bottom:none}
+.pill{display:inline-block;font-size:12px;padding:2px 8px;border-radius:999px;font-weight:600;white-space:nowrap}
+.p-good{background:var(--good-soft);color:var(--good)} .p-warn{background:var(--warn-soft);color:var(--warn)} .p-bad{background:var(--bad-soft);color:var(--bad)} .p-acc{background:var(--accent-soft);color:var(--accent)}
+.flow{display:flex;flex-direction:column;gap:8px;margin:14px 0}
+.step{display:grid;grid-template-columns:34px 1fr;gap:12px;align-items:start;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.num{width:28px;height:28px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:700;font-size:13px}
+.step p{margin:0;font-size:15px}
+.step .t{font-weight:600;margin-bottom:2px}
+pre{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;overflow-x:auto;font-size:13px;line-height:1.5;margin:8px 0 18px;white-space:pre}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.92em}
+p code, li code, td code{background:var(--accent-soft);color:var(--accent);padding:1px 5px;border-radius:5px}
+.grader{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;margin:16px 0}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+label{font-size:13px;color:var(--muted);display:block;margin-bottom:4px}
+select,textarea,input[type=file]{width:100%;font:inherit;font-size:14px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+textarea{min-height:130px;resize:vertical}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+button{font:inherit;font-size:14px;border:1px solid var(--accent);color:var(--accent);background:transparent;border-radius:999px;padding:6px 14px;cursor:pointer}
+button.primary{background:var(--accent);color:#fff}
+:root[data-theme="dark"] button.primary{color:#0f1115}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) button.primary{color:#0f1115}}
+button:hover{opacity:.9}
+.case-box{font-size:14px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.case-box .msg{font-size:15px;margin-bottom:8px}
+.kv{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;color:var(--muted);white-space:pre-wrap;word-break:break-word}
+.checks{list-style:none;padding:0;margin:10px 0 0}
+.checks li{display:flex;gap:10px;align-items:flex-start;padding:6px 0;border-bottom:1px dashed var(--line);font-size:14px}
+.checks li:last-child{border-bottom:none}
+.verdict{font-size:15px;font-weight:700;margin-top:10px}
+.why{background:var(--accent-soft);border-radius:12px;padding:18px 20px;margin-top:40px}
+.why h2{margin-top:0}
+footer{margin-top:48px;font-size:13px;color:var(--muted)}
+.small{font-size:13px;color:var(--muted)}
+details{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin:10px 0}
+summary{cursor:pointer;font-weight:600}
+@media (max-width:760px){
+  .tldr{grid-template-columns:1fr}
+  .row2{grid-template-columns:1fr}
+}
+.ctrl-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 20px}
+.ctrl-grid label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
+.ctrl-grid input{width:100%;font:inherit;font-size:14px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:7px 10px}
+.step ul{margin:6px 0 0;font-size:15px}
+@media (max-width:760px){.ctrl-grid{grid-template-columns:1fr}}
+
+input[type=checkbox]{accent-color:var(--accent)}
+.levers{display:flex;flex-direction:column;gap:8px}
+.lev{display:grid;grid-template-columns:22px 1fr 80px;gap:4px 10px;align-items:center;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:14px;color:var(--ink);margin:0}
+.lev input[type=number]{width:80px;font:inherit;font-size:14px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:4px 8px}
+.lev .small{grid-column:2 / 4}
+.legend{display:flex;flex-wrap:wrap;gap:16px;font-size:13px;color:var(--muted);margin:18px 0 8px}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.sw-t,.bt{background:var(--muted);opacity:.55}
+.sw-n,.bn{background:var(--accent)}
+.bars{display:flex;flex-direction:column;gap:10px}
+.brow{display:grid;grid-template-columns:200px 1fr;gap:12px;align-items:center;font-size:14px}
+.bcol{line-height:1.2}
+.bar{display:inline-block;height:12px;border-radius:0 4px 4px 0;vertical-align:middle;margin:2px 0;max-width:calc(100% - 50px)}
+.bv{font-size:13px;margin-left:6px;vertical-align:middle;color:var(--ink)}
+@media (max-width:760px){.brow{grid-template-columns:1fr;gap:2px}}
+
+.phones{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:14px 0}
+.phone{background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:14px 12px;display:flex;flex-direction:column;gap:8px;font-size:13.5px}
+.ph-h{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:center;margin-bottom:2px}
+.ph-f{font-size:12px;color:var(--muted);margin-top:auto;padding-top:6px;border-top:1px dashed var(--line)}
+.bub{padding:7px 10px;border-radius:14px;max-width:92%;line-height:1.4}
+.bub.u{background:var(--accent);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
+:root[data-theme="dark"] .bub.u{color:#0f1115}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .bub.u{color:#0f1115}}
+.bub.a{background:var(--bg);border:1px solid var(--line);align-self:flex-start;border-bottom-left-radius:4px}
+.cardx{border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--bg);position:relative;line-height:1.45}
+.cardx.best{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.cardx.muted{color:var(--muted);font-size:12.5px}
+.cardx .tag{position:absolute;top:8px;right:8px;font-size:11px;background:var(--accent-soft);color:var(--accent);border-radius:999px;padding:1px 7px;font-weight:600}
+.form{display:flex;flex-direction:column;gap:6px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px}
+.form div{display:flex;justify-content:space-between;gap:8px}
+.btnx{background:var(--accent);color:#fff;border-radius:999px;text-align:center;justify-content:center!important;padding:7px;font-weight:600;margin-top:4px}
+:root[data-theme="dark"] .btnx{color:#0f1115}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .btnx{color:#0f1115}}
+@media (max-width:760px){.phones{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<p class="kicker">Independent product concept · Aditya Mathur · Oct 2026</p>
+<h1>Ghosts in the directory: a 30-day forward-deployed playbook for finding providers who aren't really there</h1>
+<p class="lede">Federal auditors found that on average 55% of the behavioral-health providers listed by Medicare Advantage and Medicaid plans had seen no members of that plan all year. This is how I'd find them at a new health plan client using the plan's own claims, decide who to call first, and fix the directory without breaking network adequacy. The SQL runs live in your browser on a synthetic plan.</p>
+
+<div class="meta">
+  <span>Built for: Forward Deployed Product Manager, HiLabs</span>
+  <span>Inside: the facts · problem statement · client discovery · the data · live SQL · the adequacy trap · 30-day deployment · product vs. client · metrics · risks</span>
+  <span><a href="#sql-lab">Jump to the live SQL</a></span>
+</div>
+
+<p class="note">Independent work. Not affiliated with HiLabs; no client or patient data used. The health plan, providers, NPIs (all start with 91, which real NPIs never do) and claims are <strong>synthetic</strong>, generated in your browser. County minimums are <strong>assumptions</strong> for illustration, not CMS's network adequacy tables. Regulatory facts are from public sources and cited.</p>
+
+<div class="tldr">
+  <div class="card"><div class="label">The problem</div><p>Directories list providers who left, never see the plan's members, or only do telehealth. Members call, can't get care, and regulators now count that against the plan.</p></div>
+  <div class="card"><div class="label">The insight</div><p>The plan already holds the best evidence: its own claims. A provider with no claims in 12 months is the first place to look, and the cheapest one to check.</p></div>
+  <div class="card"><div class="label">The trap</div><p>Remove every ghost at once and some counties fall below network adequacy minimums. Fixing the directory and fixing the network have to happen together.</p></div>
+</div>
+
+<h2>1. The facts</h2>
+<div class="tbl"><table>
+<thead><tr><th>Fact</th><th>Detail</th><th>Source</th></tr></thead>
+<tbody>
+<tr><td>Ghost networks, measured</td><td>HHS OIG: across 40 MA and 20 Medicaid managed care plans, an average of <strong>55% of listed behavioral-health providers had no encounters</strong> with the plan's members in 2023. Of inactive providers contacted, 46% no longer worked at the listed location and 21% didn't take that plan.</td><td>OIG via 24/7 Wall St., Sep 2026</td></tr>
+<tr><td>Secret shopper</td><td>Senate Finance Committee called 120 mental-health listings across 12 plans: 33% inaccurate, non-working or unreturned; an appointment could be made only <strong>18%</strong> of the time</td><td>Senate Finance Committee, May 2023</td></tr>
+<tr><td>CMS's own review</td><td>48.7% of MA directory locations had at least one error; the provider wasn't at the listed location in 33% of them</td><td>CMS, 2018</td></tr>
+<tr><td>Rules tightening</td><td>Directories verified at least every 90 days and updated within 2 business days of a change; self-attestation no longer enough as the main check; plans may owe in-network cost-sharing when members rely on a wrong listing (REAL Health Providers Act, as summarised by HiLabs)</td><td>HiLabs, Feb 2026; No Surprises Act</td></tr>
+<tr><td>HiLabs today</td><td>MCheck platform: roster automation, directory accuracy, Network IQ, Contracts AI, outreach. 4 of the 10 largest US health plans as clients; 100M+ directory records reviewed; $39M Series B (2024). In Aug 2026 a top-10 plan picked its agentic voice outreach: 50,000 extra calls a month at a fifth of manual cost, campaigns live in 2 days instead of 4–6 weeks.</td><td>HiLabs; PR Newswire</td></tr>
+</tbody></table></div>
+
+<h2>2. The problem statement</h2>
+<p class="card" style="margin:10px 0 16px"><strong>A new health plan client has a directory it can't trust, an audit coming, and no idea which of its listings are ghosts. In 30 days, find the listings most likely to be wrong using the plan's own claims, verify them in the order that protects members most, and fix the directory within the 90-day and 2-business-day rules, without removing so many providers that the plan falls below network adequacy minimums in any county.</strong></p>
+
+<h2>3. Client discovery: the first two weeks</h2>
+<div class="row2">
+<div class="card"><div class="label">Who I'd meet, and what I need from each</div>
+<ul class="small" style="margin-top:6px">
+  <li><strong>Provider data ops:</strong> how directory changes flow today, backlog size, where rosters come from and how late</li>
+  <li><strong>Network management:</strong> which counties and specialties are already thin; recruiting pipeline</li>
+  <li><strong>Compliance:</strong> last CMS or state audit findings; dates of the next ones; complaint log</li>
+  <li><strong>Claims / IT:</strong> claims extract with rendering NPI, service location, place of service, date; claims lag</li>
+  <li><strong>Member services:</strong> calls about providers who couldn't be reached</li>
+</ul></div>
+<div class="card"><div class="label">Questions that change the design</div>
+<ul class="small" style="margin-top:6px">
+  <li>Do claims carry the <em>rendering</em> NPI, or only the billing group's? (If only the group's, the method needs roster data to work.)</li>
+  <li>How many months of claims run-out before the data is complete?</li>
+  <li>Which providers are delegated (a group manages their data)?</li>
+  <li>Is telehealth listed separately from in-person locations?</li>
+  <li>Who signs off on removing a listing, and how fast?</li>
+</ul></div>
+</div>
+
+<h2 id="sql-lab">4. Live SQL on a synthetic plan</h2>
+<div class="grader">
+<p class="small" id="status">Loading the SQL engine…</p>
+<p class="small" id="dataNote"></p>
+<div class="tldr" id="sum" style="margin-top:6px"></div>
+<label>Query</label>
+<select id="qSel"></select>
+<textarea id="sql" spellcheck="false" style="min-height:300px;white-space:pre;overflow-x:auto;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;margin-top:8px"></textarea>
+<div class="btns"><button class="primary" id="runBtn">Run</button></div>
+<div id="qOut"></div>
+<p class="small">Tables: <code>directory_listings</code> (listing_id, npi, specialty, county, county_type, zip, phone, accepting_new, listed_since), <code>claims</code> (rendering_npi, service_date, service_zip, place_of_service), <code>adequacy_minimums</code> (county_type, specialty, min_providers). SQLite syntax. Data as of 1 Oct 2026.</p>
+</div>
+
+<h2>5. The adequacy trap, and how to handle it</h2>
+<p>Query 3 is the one a client will thank you for. A ghost listing is wrong, but it's also counted toward the plan's network adequacy. Remove it without a plan and a county can fall below the minimum, which is its own compliance problem. So every inactive listing goes into one of three lanes:</p>
+<div class="flow">
+  <div class="step"><div class="num">1</div><div><p class="t">County still adequate without it</p><p>Verify (call, or check recent roster data) and remove or correct within 2 business days of confirming.</p></div></div>
+  <div class="step"><div class="num">2</div><div><p class="t">County would fall below the minimum</p><p>Verify first and flag to network management the same week. Correct the listing (members shouldn't be sent to a ghost) and start recruiting in parallel, so the compliance team sees both moves together.</p></div></div>
+  <div class="step"><div class="num">3</div><div><p class="t">Not a ghost after all</p><p>New providers, part-timers, telehealth-only, or claims billed under a group NPI. Fix the listing's details (telehealth flag, hours, group) and add the pattern to the rules so it isn't flagged again.</p></div></div>
+</div>
+
+<h2>6. The 30-day deployment</h2>
+<div class="tbl"><table>
+<thead><tr><th>When</th><th>What</th><th>Done means</th></tr></thead>
+<tbody>
+<tr><td>Days 1–7</td><td>Discovery meetings; data agreements and secure transfer set up; directory, roster and 24 months of claims received</td><td>Data profiled: row counts, NPI match rate between directory and claims, claims lag measured</td></tr>
+<tr><td>Days 8–14</td><td>Run the inactive, wrong-location, telehealth and adequacy queries; tune for the client's quirks (group billing, delegated groups)</td><td>A baseline the client agrees with: "X% of behavioral listings look inactive; here are the 10 we checked by hand"</td></tr>
+<tr><td>Days 15–24</td><td>Outreach in priority order: agentic voice calls for volume, people for adequacy-critical and disputed listings</td><td>Every behavioral-health listing in the top priority group verified</td></tr>
+<tr><td>Days 25–30</td><td>Corrections loaded into the directory and core system; adequacy gaps handed to network management with a recruiting list; readout to compliance</td><td>Before/after accuracy on a random verified sample; a monthly refresh scheduled</td></tr>
+</tbody></table></div>
+
+<h2>7. What's product, and what's this client</h2>
+<div class="row2">
+<div class="card"><div class="label">Build once (product)</div>
+<ul class="small" style="margin-top:6px">
+  <li>Inactive-listing detection from claims, with the 6-month new-provider exclusion</li>
+  <li>Adequacy impact report (inactive vs. minimums, by county and specialty)</li>
+  <li>Priority score for outreach, feeding the voice agent's call list</li>
+  <li>Before/after accuracy measured on a random verified sample</li>
+</ul></div>
+<div class="card"><div class="label">Configure per client</div>
+<ul class="small" style="margin-top:6px">
+  <li>Specialty taxonomy mapping</li>
+  <li>Claims lag and look-back window</li>
+  <li>Rendering vs. billing NPI handling; delegated group rules</li>
+  <li>The plan's own adequacy standards and sign-off workflow</li>
+</ul></div>
+</div>
+<p class="small">The rule I'd hold to: if the same client-specific fix shows up at a second client, it moves into the product.</p>
+
+<h2>8. Metrics</h2>
+<ul>
+  <li><strong>For the client:</strong> directory accuracy on a random verified sample (the only honest measure); share of listings verified in the last 90 days; median days from a confirmed change to the directory update (target: 2 business days or less); share of behavioral-health listings with claims in the last 12 months.</li>
+  <li><strong>For the network:</strong> county–specialty pairs below the minimum, before and after; recruiting started for each gap.</li>
+  <li><strong>For HiLabs:</strong> time to first value (days from data received to a baseline the client accepts); cost per verified listing; share of client-specific fixes later moved into the product.</li>
+  <li><strong>Guardrail:</strong> listings wrongly removed (providers who were active) found in the verified sample. This should be near zero; a wrong removal sends a member away from a real doctor.</li>
+</ul>
+
+<h2>9. Risks and what would make this wrong</h2>
+<ul>
+  <li><strong>Group billing.</strong> If claims carry only the group's NPI, individual providers look inactive. Check the rendering NPI fill rate on day one.</li>
+  <li><strong>Claims lag.</strong> Recent months are incomplete. Use a window that ends before the lag, or count only claims older than the run-out.</li>
+  <li><strong>Low-volume specialists.</strong> Some real providers see few of this plan's members. "No claims" means "check first", never "remove automatically".</li>
+  <li><strong>Data protection.</strong> Claims are PHI. Minimum necessary fields, the client's environment or an approved secure one, and access logged.</li>
+  <li><strong>The synthetic data is mine.</strong> The method follows the OIG's; the numbers in the lab are illustrations, not findings.</li>
+</ul>
+
+<div class="why">
+<h2>Why I built this</h2>
+<p>Forward-deployed work is half client and half data. At EnKash I owned merchant onboarding and integrations for a payments product and drove delivery across engineering, risk, reconciliation, onboarding and support, including a fix for one enterprise client's checkout. At Stripe I wrote SQL on large transaction datasets for a US-market team, and rebuilt a pipeline that was failing silently. I've built a go-live kit for taking an AI lung-nodule program live at a US health system, and two voice agents of my own, which is why HiLabs' move into agentic outreach caught my eye. This is the first problem I'd want to walk a new client through.</p>
+</div>
+
+<footer>
+<p><strong>Sources</strong> (accessed Oct 2026):
+<a href="https://247wallst.com/personal-finance/2026/09/08/you-picked-the-plan-because-your-doctor-was-in-the-directory-federal-auditors-found-more-than-half-the-listed-mental-health-providers-werent-seeing-patients/">OIG findings via 24/7 Wall St.</a> ·
+<a href="https://www.finance.senate.gov/chairmans-news/wyden-calls-for-action-to-get-rid-of-ghost-networks-releases-secret-shopper-study">Senate Finance Committee secret shopper study</a> ·
+<a href="https://www.cms.gov/medicare/health-plans/managedcaremarketing/downloads/oy2_provider_directory_industry_report_11-21-2018.pdf">CMS online provider directory review, 2018</a> ·
+<a href="https://www.hilabs.com/blog/real-health-providers-act-provider-directory-accountability">HiLabs on the REAL Health Providers Act</a> ·
+<a href="https://www.hilabs.com/">hilabs.com</a> ·
+<a href="https://www.prnewswire.com/news-releases/hilabs-announces-closing-of-39-million-series-b-financing-to-advance-its-ai-powered-data-management-solutions-for-healthcare-organizations-302088742.html">HiLabs Series B</a> ·
+<a href="https://www.prnewswire.com/news-releases/one-of-americas-top-10-health-plans-selects-hilabs-agentic-voice-intelligence-built-on-clean-timely-provider-data-to-redefine-payer-provider-outreach-302842275.html">HiLabs agentic voice outreach</a></p>
+<p>Aditya Mathur · <a href="https://adimathur-creates.github.io">adimathur-creates.github.io</a> · <a href="https://www.linkedin.com/in/adityaamathur">LinkedIn</a> · adityamathur2004@gmail.com</p>
+</footer>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-asm.js"></script>
+<script>
+// ---------- Synthetic data (FICTIONAL). Seeded so every visitor sees the same numbers. ----------
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const R = mulberry32(42);
+const pick = a => a[Math.floor(R()*a.length)];
+const COUNTIES = [
+  {name:'Maple', type:'URBAN', zips:['20901','20902','20903']},
+  {name:'Riverside', type:'URBAN', zips:['20911','20912','20913']},
+  {name:'Pine', type:'RURAL', zips:['21801','21802']},
+  {name:'Cedar', type:'RURAL', zips:['21811','21812']}];
+const SPECS = [
+  {s:'Psychiatry', bh:1, urban:25, rural:6, ghost:0.45, rate:6},
+  {s:'Psychology', bh:1, urban:30, rural:8, ghost:0.50, rate:5},
+  {s:'Clinical Social Work', bh:1, urban:40, rural:10, ghost:0.50, rate:5},
+  {s:'Primary Care', bh:0, urban:60, rural:20, ghost:0.15, rate:14},
+  {s:'Cardiology', bh:0, urban:15, rural:4, ghost:0.12, rate:7}];
+const MIN = [ // ASSUMED minimum active providers per county, for illustration only (not CMS's actual table)
+  ['URBAN','Psychiatry',12],['URBAN','Psychology',12],['URBAN','Clinical Social Work',15],['URBAN','Primary Care',35],['URBAN','Cardiology',8],
+  ['RURAL','Psychiatry',3],['RURAL','Psychology',4],['RURAL','Clinical Social Work',5],['RURAL','Primary Care',12],['RURAL','Cardiology',2]];
+const AS_OF = new Date('2026-10-01');
+const iso = d => d.toISOString().slice(0,10);
+const daysAgo = n => { const d=new Date(AS_OF); d.setDate(d.getDate()-n); return d; };
+function buildData(){
+  const listings=[], claims=[]; let npi=9100000000, lid=1, cid=1;
+  COUNTIES.forEach(c => SPECS.forEach(sp => {
+    const n = c.type==='URBAN' ? sp.urban : sp.rural;
+    for(let i=0;i<n;i++){
+      npi++; const zip = pick(c.zips);
+      const u = R();
+      let status = u < sp.ghost ? 'GHOST' : u < sp.ghost+0.07 ? 'MOVED' : u < sp.ghost+0.12 ? 'NEW' : (sp.bh && u < sp.ghost+0.22) ? 'TELE' : 'ACTIVE';
+      const listedDays = status==='NEW' ? 30+Math.floor(R()*120) : 400+Math.floor(R()*2000);
+      listings.push([lid++, String(npi), 'Provider '+String(npi).slice(-4), sp.s, c.name, c.type, zip, '555-01'+String(Math.floor(R()*90)+10), R()<0.7?1:0, iso(daysAgo(listedDays))]);
+      if(R()<0.12) listings.push([lid++, String(npi), 'Provider '+String(npi).slice(-4), sp.s, c.name, c.type, pick(c.zips), '555-02'+String(Math.floor(R()*90)+10), R()<0.6?1:0, iso(daysAgo(listedDays+30))]);
+      if(status==='GHOST'){ if(R()<0.3){ for(let k=0;k<3;k++) claims.push([cid++, 'M'+Math.floor(R()*90000), String(npi), iso(daysAgo(420+Math.floor(R()*120))), zip, '11']); } continue; }
+      const months = status==='NEW' ? Math.max(1, Math.floor(listedDays/30)) : 18;
+      const other = pick(COUNTIES.filter(x=>x.name!==c.name)).zips[0];
+      for(let m=0;m<months;m++){ const k = Math.max(0, Math.round(sp.rate*(0.5+R())));
+        for(let j=0;j<k;j++){ const tele = status==='TELE' || (sp.bh && R()<0.15);
+          claims.push([cid++, 'M'+Math.floor(R()*90000), String(npi), iso(daysAgo(m*30+Math.floor(R()*30))), status==='MOVED'?other:zip, tele?'02':'11']); } }
+    }}));
+  return {listings, claims};
+}
+// ---------- Preset queries ----------
+const Q = {
+q1:{t:'1. Listed but not seeing members (the OIG method)', sql:
+`-- A listing is "inactive" if its provider has no claims in the last 12 months.
+-- Providers listed in the last 6 months are left out: they haven't had time to bill.
+SELECT d.specialty,
+       COUNT(*)                                         AS listings,
+       SUM(CASE WHEN c.npi IS NULL THEN 1 ELSE 0 END)   AS inactive,
+       ROUND(100.0 * SUM(CASE WHEN c.npi IS NULL THEN 1 ELSE 0 END) / COUNT(*), 1) AS pct_inactive
+FROM directory_listings d
+LEFT JOIN (SELECT DISTINCT rendering_npi AS npi FROM claims
+           WHERE service_date >= date('2026-10-01', '-12 months')) c
+       ON c.npi = d.npi
+WHERE d.listed_since <= date('2026-10-01', '-6 months')
+GROUP BY d.specialty
+ORDER BY pct_inactive DESC;`},
+q2:{t:'2. Listed here, seeing patients somewhere else', sql:
+`-- Active providers whose recent in-person claims come from ZIPs where they are not listed.
+WITH recent AS (
+  SELECT rendering_npi AS npi, service_zip, COUNT(*) AS n
+  FROM claims
+  WHERE service_date >= date('2026-10-01', '-6 months') AND place_of_service = '11'
+  GROUP BY 1, 2)
+SELECT r.npi, d.specialty, d.county AS listed_county,
+       GROUP_CONCAT(DISTINCT d.zip) AS listed_zips,
+       r.service_zip AS billing_zip, r.n AS claims_last_6m
+FROM recent r
+JOIN directory_listings d ON d.npi = r.npi
+GROUP BY r.npi, r.service_zip
+HAVING SUM(CASE WHEN d.zip = r.service_zip THEN 1 ELSE 0 END) = 0
+ORDER BY r.n DESC;`},
+q3:{t:'3. If we remove the ghosts, where does the network break?', sql:
+`-- Compares active providers (claims in 12 months) with an ASSUMED county minimum.
+-- A gap here means: verify carefully and recruit before removing listings.
+WITH active AS (SELECT DISTINCT rendering_npi AS npi FROM claims
+                WHERE service_date >= date('2026-10-01', '-12 months')),
+listed AS (SELECT county, county_type, specialty,
+                  COUNT(DISTINCT npi) AS listed_providers,
+                  COUNT(DISTINCT CASE WHEN npi IN (SELECT npi FROM active) THEN npi END) AS active_providers
+           FROM directory_listings GROUP BY 1, 2, 3)
+SELECT l.county, l.specialty, l.listed_providers, l.active_providers, m.min_providers,
+       CASE WHEN l.active_providers < m.min_providers THEN 'GAP: recruit before removing'
+            ELSE 'OK' END AS status
+FROM listed l
+JOIN adequacy_minimums m ON m.county_type = l.county_type AND m.specialty = l.specialty
+ORDER BY (l.active_providers - m.min_providers), l.county;`},
+q4:{t:'4. Who to call first', sql:
+`-- Outreach priority: inactive listings that members are most likely to rely on.
+-- Behavioral health first (where ghost networks hurt most), "accepting new patients" next,
+-- then counties where removal would open an adequacy gap (those need the most care).
+WITH active AS (SELECT DISTINCT rendering_npi AS npi FROM claims
+                WHERE service_date >= date('2026-10-01', '-12 months'))
+SELECT d.listing_id, d.npi, d.specialty, d.county, d.zip, d.phone, d.accepting_new,
+       (CASE WHEN d.specialty IN ('Psychiatry','Psychology','Clinical Social Work') THEN 3 ELSE 0 END
+        + d.accepting_new * 2
+        + CASE WHEN d.county_type = 'RURAL' THEN 1 ELSE 0 END) AS priority_score
+FROM directory_listings d
+WHERE d.npi NOT IN (SELECT npi FROM active)
+  AND d.listed_since <= date('2026-10-01', '-6 months')
+ORDER BY priority_score DESC, d.county
+LIMIT 25;`},
+q5:{t:'5. Telehealth-only, but listed at an office', sql:
+`-- Providers whose recent claims are all telehealth (place of service 02).
+-- Members may drive to an address where nobody sees patients.
+SELECT d.npi, d.specialty, d.county, d.zip AS listed_zip,
+       SUM(CASE WHEN c.place_of_service = '02' THEN 1 ELSE 0 END) AS telehealth_claims,
+       SUM(CASE WHEN c.place_of_service = '11' THEN 1 ELSE 0 END) AS office_claims
+FROM directory_listings d
+JOIN claims c ON c.rendering_npi = d.npi AND c.service_date >= date('2026-10-01', '-6 months')
+GROUP BY d.npi, d.specialty, d.county, d.zip
+HAVING office_claims = 0 AND telehealth_claims >= 5
+ORDER BY telehealth_claims DESC;`}
+};
+// ---------- Run ----------
+let DB=null;
+const $ = s => document.querySelector(s);
+function table(res){
+  if(!res.length) return '<p class="small">No rows.</p>';
+  const {columns, values} = res[0];
+  const rows = values.slice(0,200);
+  return `<div class="tbl"><table><thead><tr>${columns.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(v=>`<td>${v===null?'':v}</td>`).join('')}</tr>`).join('')}</tbody></table></div><p class="small">${values.length} row${values.length===1?'':'s'}${values.length>200?' (showing 200)':''}</p>`;
+}
+function run(){
+  try{ $('#qOut').innerHTML = table(DB.exec($('#sql').value)); }
+  catch(e){ $('#qOut').innerHTML = `<p class="small" style="color:var(--bad)">SQL error: ${e.message}</p>`; }
+}
+function one(sql){ const r = DB.exec(sql); return r.length ? r[0].values[0][0] : 0; }
+function summary(){
+  const act = "(SELECT DISTINCT rendering_npi FROM claims WHERE service_date >= date('2026-10-01','-12 months'))";
+  const elig = "listed_since <= date('2026-10-01','-6 months')";
+  const L = one(`SELECT COUNT(*) FROM directory_listings WHERE ${elig}`);
+  const I = one(`SELECT COUNT(*) FROM directory_listings WHERE ${elig} AND npi NOT IN ${act}`);
+  const LB = one(`SELECT COUNT(*) FROM directory_listings WHERE ${elig} AND specialty IN ('Psychiatry','Psychology','Clinical Social Work')`);
+  const IB = one(`SELECT COUNT(*) FROM directory_listings WHERE ${elig} AND specialty IN ('Psychiatry','Psychology','Clinical Social Work') AND npi NOT IN ${act}`);
+  const G = DB.exec(Q.q3.sql)[0].values.filter(r=>String(r[5]).startsWith('GAP')).length;
+  const C = one('SELECT COUNT(*) FROM claims');
+  $('#sum').innerHTML = `
+  <div class="card"><div class="label">Inactive listings</div><p><strong style="font-size:22px">${(100*I/L).toFixed(0)}%</strong> of ${L} listings (no claims in 12 months)</p></div>
+  <div class="card"><div class="label">Behavioral health</div><p><strong style="font-size:22px">${(100*IB/LB).toFixed(0)}%</strong> inactive. The OIG found 55% on average in 2023.</p></div>
+  <div class="card"><div class="label">Network gaps if removed blindly</div><p><strong style="font-size:22px">${G}</strong> county–specialty pairs would fall below the minimum</p></div>`;
+  $('#dataNote').textContent = `Synthetic plan: ${one('SELECT COUNT(*) FROM directory_listings')} directory listings, ${one('SELECT COUNT(DISTINCT npi) FROM directory_listings')} providers, ${C.toLocaleString()} claims over 18 months, 4 counties.`;
+}
+function init(){
+  initSqlJs().then(SQL => {
+    DB = new SQL.Database();
+    DB.run(`CREATE TABLE directory_listings(listing_id INT, npi TEXT, provider_name TEXT, specialty TEXT, county TEXT, county_type TEXT, zip TEXT, phone TEXT, accepting_new INT, listed_since TEXT);
+            CREATE TABLE claims(claim_id INT, member_id TEXT, rendering_npi TEXT, service_date TEXT, service_zip TEXT, place_of_service TEXT);
+            CREATE TABLE adequacy_minimums(county_type TEXT, specialty TEXT, min_providers INT);
+            CREATE INDEX ci ON claims(rendering_npi, service_date);`);
+    const {listings, claims} = buildData();
+    DB.run('BEGIN');
+    const s1 = DB.prepare('INSERT INTO directory_listings VALUES (?,?,?,?,?,?,?,?,?,?)'); listings.forEach(r=>s1.run(r)); s1.free();
+    const s2 = DB.prepare('INSERT INTO claims VALUES (?,?,?,?,?,?)'); claims.forEach(r=>s2.run(r)); s2.free();
+    const s3 = DB.prepare('INSERT INTO adequacy_minimums VALUES (?,?,?)'); MIN.forEach(r=>s3.run(r)); s3.free();
+    DB.run('COMMIT');
+    $('#qSel').innerHTML = Object.keys(Q).map(k=>`<option value="${k}">${Q[k].t}</option>`).join('');
+    $('#qSel').onchange = () => { $('#sql').value = Q[$('#qSel').value].sql; run(); };
+    $('#runBtn').onclick = run;
+    $('#sql').value = Q.q1.sql; summary(); run();
+    $('#status').textContent = 'Database loaded in your browser. Edit any query and press Run.';
+  }).catch(e => { $('#status').textContent = 'Could not load the SQL engine: '+e.message; });
+}
+init();
+
+</script>
+</body>
+</html>
